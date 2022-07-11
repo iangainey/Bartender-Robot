@@ -1,0 +1,394 @@
+/*
+   ----Notes for this program:---
+
+   Moving in negative direction is CW, postivie is CCW.
+   Thus, for this current project CCW is towards home and CW is away from home
+*/
+
+//----------Libraries----------
+
+#include <AccelStepper.h>
+#include <Servo.h>
+#include <EEPROM.h>
+
+//----------Definitions/Constants----------
+
+#define DIRECTIONPIN 8
+#define STEPPIN 9
+#define HOMESWITCH 4
+#define SERVOZERO 10
+#define SERVOMAX 78
+#define BOTTLECOUNT 9
+#define OPTICONE 1160
+#define OPTICGAP 2000
+#define INGREDIENTS 20
+
+//----------Object Initialization----------
+
+AccelStepper conveyor(AccelStepper::DRIVER, STEPPIN, DIRECTIONPIN);
+Servo dispenserServo;
+
+//----------Function Definitions----------
+
+int getInput();
+void mainMenu();
+int selectRecipe();
+void bottleSetup();
+void saveSetup(int ingredientList[]);
+void getIngredientPositions(int ingredientPositions[]);
+void getRecipe(int recipe[] , int recipeSelected);
+bool checkRecipe(int recipeIngredients[] , int recipeSize , int ingredients[]);
+void createExecRecipe(int recipe[] , int recipeSize  , int recipeToMake[]);
+void executeRecipe(int recipe[] , int recipeSize);
+void actuateServo();
+bool homePlatform();
+
+//----------Functions----------
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(HOMESWITCH, INPUT_PULLUP);  //Normally open switch, so high will indicate open and low will be closed
+  dispenserServo.attach(10);
+  dispenserServo.write(SERVOZERO);
+}
+
+void loop() {
+
+  mainMenu();
+}
+
+int getInput() {
+  //Get input and return an int, use only for menu selections where an int is wanted
+  int input = 0;
+  while (!Serial.available()) {
+    //Wait for selection
+  }
+  if (Serial.available()) {
+    input = Serial.parseInt();
+  }
+  //input = input - '0';
+  Serial.end();
+  delay(5);
+  Serial.begin(9600);
+  return input;
+}
+
+
+void mainMenu() {
+
+  homePlatform();
+
+  Serial.println("");
+  Serial.println("********Main Menu********");
+  Serial.println("1. Select Drink");
+  Serial.println("2. Setup Bottle Placement");
+  Serial.println("Enter the number of your selection: ");
+
+  int menuSelection = getInput();
+
+  if (menuSelection != 1 && menuSelection != 2 && menuSelection != 3) {
+    Serial.println("Please enter a valid selection");
+  }
+  if (menuSelection == 1) {
+    int recipeSelected = selectRecipe();
+    int recipe[20] = {0};
+    getRecipe(recipe, recipeSelected);
+  }
+  if (menuSelection == 2) {
+    bottleSetup();
+  }
+
+
+}
+
+int selectRecipe() {
+  //Get user input
+  Serial.println("Enter which recipe to make:");
+  Serial.println("1. Rum & Coke");
+  Serial.println("2. Choice 2");
+
+  int recipeInput = getInput();
+  Serial.print("You chose: ");
+  Serial.println(recipeInput);
+  return recipeInput;
+}
+
+
+
+void bottleSetup() {
+  //Want to print out all the possible ingredients
+  //Iterate trhough each position from one side of rack to other, ask what is in each spot
+  //Save those to EEPROM
+  Serial.println("");
+  Serial.println("********Bottle Setup********");
+  Serial.println("Ingredients:");
+  Serial.println("1. Vodka      6. Bourbon  11. Kahlua      16. Cranberry Juice");
+  Serial.println("2. Light Rum  7. Gin      12. Triple Sec  17. Orange Juice");
+  Serial.println("3. Dark Rum   8. Amaretto 13. Club Soda   18. Pineapple Juice");
+  Serial.println("4. Tequila    9. Schnapps 14. Tonic       19. Lime Juice");
+  Serial.println("5. Whiskey    10. Brandy  15. Coke        20. Lemon Juice");
+
+  //Create an array of bottle ordering, and then save it
+  int ingredientList[BOTTLECOUNT] = {0};
+  for (int i = 0; i < BOTTLECOUNT; i++) {
+    Serial.print("Enter the ingredient ");
+    Serial.print(i);
+    Serial.print(" bottles from the left: ");
+    ingredientList[i] = getInput();
+    Serial.println(ingredientList[i]);
+  }
+  saveSetup(ingredientList);
+}
+
+void saveSetup(int ingredientList[]) {
+  //EEPROM has total of 512 bytes
+  //Save using put to write as many bytes as the data passed is, then increase address by size by size of data
+  int addr = 0;
+  for (int i = 0; i < BOTTLECOUNT; i++) {
+    EEPROM.put(addr, ingredientList[i]);
+    addr += sizeof(int);
+  }
+}
+
+void getIngredientPositions(int ingredientPositions[]) {
+  //Read from EEPROM and return an array of ingredient positions/ordering
+  int addr = 0;
+  for (int i = 0; i < BOTTLECOUNT; i++) {
+    EEPROM.get(addr, ingredientPositions[i]);
+    addr += sizeof(int);
+  }
+}
+
+void getRecipe(int recipe[] , int recipeSelected) {
+
+  /*
+    Recipe format
+    drinkName[]= { Ingr1 , Quantity , Ingr2 , Quantity , Ingr3 , Quantity, etc.};
+
+    Collection of Recipes:
+  */
+  int rumCoke[] = {3 , 2 , 19 , 1 , 15 , 4 }; //1. Rum & Coke, 3. Dark Rum, 19. Lime Juice, 15. Coke
+  int test[] = {1, 4 , 2 , 1 , 3 , 1 , 4 , 1 , 5 , 1 , 6 , 1 , 7 , 1 , 8 , 1 , 9 , 1};
+
+
+  //Get ingredient positions
+  int ingredientPositions[BOTTLECOUNT] = {0};
+  getIngredientPositions(ingredientPositions);
+
+  //For each recipe, execute
+  switch (recipeSelected) {
+    case 1:
+      //Check if ingredients are present on rack for the recipe requested
+      if (checkRecipe(rumCoke , (sizeof(rumCoke) / 2) , ingredientPositions) == true) {
+        //If so, execute
+        int recipeToMake[25] = {0}; //Size needs to be big enough for all stops
+
+        //Call this function while gets the ingredient positions and uses them to create recipe coordinates to use
+        createExecRecipe(rumCoke , (sizeof(rumCoke) / 2) , recipeToMake);
+        executeRecipe(recipeToMake , (sizeof(recipeToMake) / 2));
+
+      } else {
+        Serial.println("Ingredients listed do not match up with recipe, ensure ingredients are correct and updated from the main menu");
+      }
+      break;
+    case 2:
+      //Check if ingredients are present on rack for the recipe requested
+      if (checkRecipe(test , (sizeof(test) / 2) , ingredientPositions) == true) {
+        //If so, execute
+        int recipeToMake[25] = {0}; //Size needs to be big enough for all stops
+        //Call this function while gets the ingredient positions and uses them to create recipe coordinates to use
+        createExecRecipe(test , (sizeof(test) / 2) , recipeToMake);
+        executeRecipe(recipeToMake , (sizeof(recipeToMake) / 2));
+      }
+      else {
+        Serial.println("Ingredients listed do not match up with recipe, ensure ingredients are correct and updated from the main menu");
+      }
+      break;
+      /*
+        case 3:
+        recipeSelected = ;
+        break;
+        case 4:
+        recipeSelected = ;
+        break;
+        case 5:
+        recipeSelected = ;
+        break;
+        case 6:
+        recipeSelected = ;
+        break;
+      */
+  }
+
+}
+
+bool checkRecipe(int recipeIngredients[] , int recipeSize , int ingredients[]) {
+  //Iterate through recipe and ingredients to ensure all are currently present
+  for (int i = 0; i < recipeSize; i++) {
+
+    if (i % 2 == 0 ) {
+      //Only iterate every other starting with firstvalue of array
+      int recipeIngr = recipeIngredients[i];
+
+      for (int j = 0; j < BOTTLECOUNT; j++) {
+
+        int ingredient = ingredients[j];
+        //Iterate through each ingredient and see if recipe ingredient is present
+        if (ingredient == recipeIngr) {
+          break;  //If ingredient is here, break to next ingredient in recipe
+        }
+        if (j == (BOTTLECOUNT - 1)) {
+          return false; //If ingredients on rack does not hold this ingredient, return false
+        }
+
+      }
+
+    }
+
+  }
+  //If it reaches here without returning false, all ingredients were found, return true
+  return true;
+}
+
+void createExecRecipe(int recipe[] , int recipeSize , int recipeToMake[]) {
+  //Take in recipe and ingredient positions. Produce sequence of positions based on those inputs
+
+  int ingredients[BOTTLECOUNT] = {0};
+  getIngredientPositions(ingredients);
+
+  int nextIndex = 0; //Due to varying recipe sizes and quantity of each ingredient, need somewhat dynamic, so keep track of index
+  for (int i = 0; i < recipeSize; i++) {
+    //Iterate through recipe ingredients
+    int recipeIngr = recipe[i];
+
+    if (i % 2 == 0 ) {
+      //If recipe index is an ingredient, not a quantity:
+      for (int j = 0; j < BOTTLECOUNT; j++) {
+        int ingredient = ingredients[j];
+
+        if (ingredient == recipeIngr) {
+          int pos = j * OPTICGAP;
+          if (pos > 0) {
+            //If not the first position
+            recipeToMake[nextIndex] = (-pos - OPTICONE);
+          } else {
+            //Due to 1st position being different, set
+            recipeToMake[nextIndex] = -OPTICONE;
+          }
+          nextIndex++;
+          break;
+        }
+
+      }
+    }
+    else { //If recipe index is a quantity, not an ingredient
+      for (int k = 1; k < recipe[i]; k++) {
+        //For each quantity, set the previous ingredients position the amount of times that the quantity is
+        recipeToMake[nextIndex] = recipeToMake[nextIndex - k]; //Will always refer to the ingredient
+        //position corresponding to this quantity
+        nextIndex++;
+      }
+    }
+  }
+}
+
+
+//New execute
+void executeRecipe(int recipe[] , int recipeSize) {
+
+  //Set up for delay between dispenses to allow for optic to refill fully
+  unsigned long previousDispense;
+  unsigned long currentTime;
+  const int opticInterval = 3000;
+
+  for (int i = 0; i < recipeSize; i++) {
+    //Iterate through each coordinate in the recipe, unless they are 0
+    if (recipe[i] != 0) {
+      Serial.println(recipe[i]);
+      while (conveyor.currentPosition() != recipe[i]) {
+        conveyor.moveTo(recipe[i]);
+        conveyor.run();
+      }
+      while (true) {
+        currentTime = millis();
+        if ((currentTime - previousDispense) >= opticInterval) {
+          break;
+        }
+      }
+
+      actuateServo(); //Once at position, actuate servo
+      previousDispense = millis();
+    }
+    if (i == recipeSize - 1) {
+      //Last step, bring nearly home fast, can finish homing slow
+      while (conveyor.currentPosition() != -500) {
+        conveyor.moveTo(-500);
+        conveyor.run();
+      }
+      homePlatform();
+    }
+
+  }
+
+}
+
+void actuateServo() {
+  int servoPos = SERVOZERO;
+  //Trigger servo to dispense drink
+  while (servoPos < SERVOMAX) {
+    delay(5);
+    dispenserServo.write(servoPos);
+    servoPos++;
+  }
+  //Delay while dispensing
+  unsigned long previousMillis = millis();
+  unsigned long currentMillis = previousMillis;
+  const int interval = 3000;  //Delay time in millis
+  while (true) {
+    currentMillis = millis();
+    if ((currentMillis - previousMillis) >= interval) {
+      break;
+    }
+  }
+  //Bring servo back to 0
+  while (servoPos > SERVOZERO) {
+    dispenserServo.write(servoPos);
+    servoPos -= 6;
+  }
+}
+
+bool homePlatform() {
+  int homePos = 0; //Set initially to 0 so it doesn't move
+  if (digitalRead(HOMESWITCH)) {
+    //If high, means home switch is not activated. Need to move CCW (+) to contact
+    conveyor.setMaxSpeed(1000);
+    conveyor.setAcceleration(1000);
+    Serial.println("Homing...");
+    homePos = 1;  //Set to 1, will move a single position at a time
+    while (digitalRead(HOMESWITCH)) {
+      conveyor.moveTo(homePos);
+      homePos++;
+      conveyor.run();
+    }
+    //Once while loop ends, home switch is currently activated, call homePlatform again and will move it away
+    homePlatform();
+  } else {
+    //Low, so home switch is current activated and need to move away, CW (-)
+    conveyor.setMaxSpeed(500);
+    conveyor.setAcceleration(100);
+    Serial.println("Almost home...");
+    homePos = -1;
+    while (!digitalRead(HOMESWITCH)) {
+      conveyor.moveTo(homePos);
+      homePos--;
+      conveyor.run();
+    }
+    //Once while loop ends, home switch has been deactivated and platform is now home
+    Serial.println("Homing Complete");
+
+    conveyor.setCurrentPosition(0);
+    conveyor.setMaxSpeed(4000);
+    conveyor.setAcceleration(4000);
+
+  }
+}
