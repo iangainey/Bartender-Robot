@@ -1,7 +1,20 @@
 # Bartender-Robot
 Bartender Robot, using an Arduino Uno
 
-Materials:
+
+
+## Table of Contents
+- [Background](#background)
+- [Media](#media)
+- [Materials](#materials)
+- [Sources](#sources)
+
+## Background
+
+## Media
+[![Bartender Robot](Bartender_Robot_Picture.png)](https://youtu.be/RG2TqgqWY_E "Bartender Robot")
+## Materials
+
 Stepper Motor
 NEMA 17 Bipolar Stepper Motor
 Step Angle: 1.8deg
@@ -41,3 +54,5 @@ GT2 Timing belt, 6mm width
 
 Bearing
 20 Tooth 5mm bore Timing Belt Pulley GT2
+
+## Sources
