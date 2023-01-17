@@ -20,7 +20,7 @@ This project was initially started while I was still an undergraduate. I wanted 
 - The drink to be made is chosen from Arduino's Terminal with the Arduino attached to a computer. The recipe chosen will only be executed if the liquids in the recipe are among the current selection of liquids attached. The arraignment or selection of available liquids can be modified by selecting the appropriate options in the terminal. Once updated, selecting the recipe you'd like to make will now work.
 - The Stepper Motor is driven by a Polulu DRV8825 motor driver, which is provided with 12V source and draws approximately 2 amps per phase
 - The Servo Motor is provided with a 5V source and draws approximately 2.5 A
-- The voltage requirements for each piece of equipment are supplied initally from a 120V->12V transformer that can be plugged directly into a wall outlet. This is then toggled by an on/off switch on the back of the bottle mounting bar.
+- The voltage requirements for each piece of equipment are supplied initally from a 120V->12V AC/DC Adapter that can be plugged directly into a wall outlet. This is then toggled by an on/off switch on the back of the bottle mounting bar.
 
 ## Video
 Click on the below image to view a video on YouTube of the Bartender Robot
@@ -57,8 +57,8 @@ Optics
 - Barbarian 6 Rack Dispenser w/ 6 25mL Optics
 - Barbarian 3 Rack Dispenser w/ 3 25mL Optics
 
-12V DC to 5V DC Transformer
-- LM2596 Buck Converter
+
+LM2596 Buck Converter, 12V -> 5V for Servo
 - Input Voltage: 3-40V
 - Output Voltage: 1.5V – 35V
 - Max current: 3A output, under 2.5A recommended
