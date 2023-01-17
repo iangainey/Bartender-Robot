@@ -5,6 +5,7 @@ Bartender Robot was created using an Arduino Uno, and will use any recipe progra
 - [Background](#background)
 - [How It Works](#how-it-works)
 - [Video](#video)
+- [Circuit Schematic](#circuit-schematic)
 - [Materials](#materials)
 - [Sources](#sources)
 
@@ -26,6 +27,10 @@ This project was initially started while I was still an undergraduate. I wanted 
 Click on the below image to view a video on YouTube of the Bartender Robot
 [![Bartender Robot](Bartender_Robot_Picture.png)](https://youtu.be/RG2TqgqWY_E "Bartender Robot")
 
+## Circuit Schematic
+<p align="center">
+<img src="Circuit_Diagram.png" width="100%" height="100%">
+</p>
 ## Materials
 
 Stepper Motor
